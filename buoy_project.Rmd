@@ -1,0 +1,170 @@
+---
+title: "Buoy_project"
+author: "JingwenXu"
+date: "2020/9/25"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####Report
+
+##Research Objective: Is there evidence of global warming in the data collected by a single weather buoy in the NOAA National Data Buoy Center?  The Boston Buoy Data Analysis project requires you to complete a project in its entirety from acquiring data to presenting results.  As you work, keep the goals and vision for the completed work in perspective.
+
+
+
+##My understanding of the question:
+
+In my opinion, to find the evidence of global warming, we need to study the trend of certain temperature characteristics along with the year. 
+Firstly, we can simply plot the annual averages of ATMP and WTMP which reflect the central tendency of data. 
+Secondly, I think it is reasonable to analyze the annual minimum ATMP. We usually regard the abnormal higher temperature than before in cold winter as the sign of global warming. So if the annual minimum of ATMP is increasing, we may find the evidence of global warming.
+For the last temperature characteristic, I choose the difference between annual average of ATMP and WTMP as my index. Because according to the meteorological research, one of the phenomenons of global warming is the getting smaller difference between ATMP and WTMP which can result in environmental damage.
+
+
+
+##My approach and how I organized my work:
+
+I use R programming to complete my whole research from importing the data to plotting the trend of annual temperature characteristics. And I organize my work as following steps(containing the codes and plots):
+
+#(a)Import the data from NOAA and clean the data. 
+
+```{r}
+library(stringr)
+library(tidyverse)
+library(lubridate)
+### make URLs
+
+url1 <- "http://www.ndbc.noaa.gov/view_text_file.php?filename=mlrf1h"
+url2 <- ".txt.gz&dir=data/historical/stdmet/"
+
+years <- c(1987:2016)
+
+urls <- str_c(url1, years, url2, sep = "")
+
+filenames <- str_c("mr", years, sep = "")
+
+###  Read the data from the website
+
+N <- length(urls)
+
+for (i in 1:N){
+suppressMessages(assign(filenames[i], read.table(urls[i], header = TRUE,fill = T)))
+file <- get(filenames[i])
+}  
+# put '19' in front of 2 digit years so that all the year format is "YYYY"
+for (i in 1:12){
+file <- get(filenames[i])
+file$YY <- file$YY +1900
+assign(filenames[i],file)
+}
+# check that all columns are included
+# remove the last column containing large numbers of "NA"
+for (i in 14:18){
+file <- get(filenames[i])
+assign(filenames[i],file[,1:16])
+}
+#remove the "mm" column and the last excess column
+for (i in 19:30){
+file <- get(filenames[i])
+assign(filenames[i],file[,c(1:4,6:17)])
+}
+#Combine all the data frame
+for (i in 1:30){
+file <- get(filenames[i])
+colnames(file) <- c("YYYY", "MM", "DD", "hh", "WD", "WSPD", "GST", "WVHT", "DPD", "APD", "MWD", "BAR", "ATMP", "WTMP", "DEWP", "VIS")
+  
+if(i==1){
+MR <- file
+}
+else{
+MR <- rbind.data.frame(MR, file)
+}
+}
+MR <- MR[,c(1:7,12:14)]
+summary(MR)
+#We find that there are some extreme values 999 in ATMP and WTMP which should be removed
+MR <- filter(MR,MR$ATMP<100&MR$WTMP<100)
+MR <- MR %>%mutate(DATETIME = make_datetime(YYYY,MM,DD,hh))
+MR<-MR[,5:11]
+MR<-MR[,c(7,1:6)]
+```
+
+#(b)Use lubridate to transform the date-time data into posix numbers and plot the annual temperature characteristics.
+
+```{r}
+library(lubridate)
+time<-ymd_hms(MR$DATETIME)
+y1<-c()
+for(i in 1988:2016){
+y1[i-1987]<-mean(subset(MR$ATMP,year(MR$DATETIME)==i))
+}
+y1
+x<-c(1988:2016)
+data1<-data.frame(x,y1)
+ggplot(data=data1,mapping=aes(x,y1))+
+geom_point()+geom_smooth()+labs(x="year",y="average of ATMP")
+```
+
+###In above plot, the annual averages of ATMP fluctuate randomly around 25-25.25 celsius.
+
+```{r}
+x<-c(1988:2016)
+y2<-c()
+for(i in 1988:2016){
+y2[i-1987]<-mean(subset(MR$WTMP,year(MR$DATETIME)==i))
+}
+y2
+data2<-data.frame(x,y2)
+ggplot(data=data2,mapping=aes(x,y2))+
+geom_point()+geom_smooth()+labs(x="year",y="average of WTMP")
+```
+
+###In above plot, the annual averages of WTMP flctuate around 26.5-26.75 celsius.
+
+```{r}
+x<-c(1988:2016)
+y3<-c()
+for(i in 1988:2016){
+y3[i-1987]<-min(subset(MR$ATMP,year(MR$DATETIME)==i))
+}
+y3
+data3<-data.frame(x,y3)
+ggplot(data=data3,mapping=aes(x,y3))+
+geom_point()+geom_smooth()+labs(x="year",y="minimum of ATMP")
+```
+
+###In above plot, the annual minimum of ATMP has the increasing tendency since 2010.
+
+```{r}
+x<-c(1988:2016)
+y4<-c()
+for(i in 1988:2016){
+y4[i-1987]<-y2[i-1987]-y1[i-1987]
+}
+y4
+data4<-data.frame(x,y4)
+ggplot(data=data4,mapping=aes(x,y4))+
+geom_point()+geom_smooth()+labs(x="year",y="difference between ATMP and WTMP")
+```
+
+###In above plot, although there is an slightly increasing difference between annual averages of ATMP and WTMP, the values of 2011,2013 and 2015 are much lower than the tendency line.
+
+##My conclusions:
+
+We can acknowledge little about the evidence from the 1st and 2nd figures which are both regular wave. While due to the increasing annual minimum of ATMP representing the coming of "warm winter", I think figure "year-minimum of ATMP" can be as the evidence of global warming. Besides, maybe because of the environmental policy and measures applied by governments, there is an slightly increasing difference between annual averages of ATMP and WTMP. But the low values of 2011, 2013 and 2015 should be a warning of global warming.
+
+##Possible improvements about the research:
+
+If we would like to improve the accuracy and credibility of this research, we can combine more factors about the climate and consider the interactions between these factors. Or we can make plots using more samples such as the monthly or daily observations instead of yearly observations.
+
+##Reference:
+```{r}
+citation(package="stringr")
+citation(package="lubridate")
+citation(package="ggplot2")
+#National Oceanic and Atmospheric Administration's National Data Buoy Center.(2020).Station 44013 (LLNR 420) - BOSTON 16 NM East of Boston, MA[online]. Available from:https://www.ndbc.noaa.gov/station_history.php?station=44013[accessed 24 September 2020] 
+#Wikipedia.(2020).Climate change[online].Available from:https://en.wikipedia.org/wiki/Climate_change[accessed 24 September 2020]
+```
+
